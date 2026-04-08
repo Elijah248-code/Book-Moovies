@@ -51,8 +51,8 @@ CREATE TABLE IF NOT EXISTS `films` (
   `Acteur` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
   `Realisateur` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
   `Categorie` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `Note` int NOT NULL DEFAULT 0,
-  `Commentaire` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  `Note` FLOAT NOT NULL DEFAULT 0,
+  
   `Nombre_note` int NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS `notes_film` (
   `Scenario` int NOT NULL,
   `Jeu_Acteur` int NOT NULL,
   `Qualite_Audiovisuel` int NOT NULL,
+  `Commentaire` text COLLATE utf8mb4_unicode_ci NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uniq_notes_film_utilisateur_film` (`id_utilisateur`,`id_film`),
   KEY `fk_notes_film_utilisateur` (`id_utilisateur`),
