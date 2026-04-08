@@ -1,0 +1,14 @@
+{
+  "name": "book-and-moovies",
+  "version": "1.0.0",
+  "description": "Application Book and Moovies",
+  "private": true,
+  "scripts": {
+    "dev": "npm-run-all --parallel dev:backend dev:frontend",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd BooksAndMovies && npm run dev"
+  },
+  "devDependencies": {
+    "npm-run-all2": "^8.0.4"
+  }
+}
