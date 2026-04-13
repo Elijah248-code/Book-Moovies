@@ -1,6 +1,5 @@
 <template>
   <div class="home-container">
-    <!-- Header avec navigation -->
     <header class="app-header">
       <div class="header-content">
         <h1 class="logo">🎬 Movies App</h1>
@@ -14,57 +13,43 @@
       </div>
     </header>
 
-    <!-- Contenu principal -->
     <main class="main-content">
-      <div class="content-header">
-        <h2>Ma Liste de Films</h2>
-        <p class="compteur" v-if="!loading && !error">
-          {{ films.length }} film(s) trouvé(s)
-        </p>
+  <div class="content-header">
+    <h2>Ma Liste de Films</h2>
+    <p class="compteur" v-if="!loading && !error">
+      {{ films.length }} film(s) trouvé(s)
+    </p>
+  </div>
+
+  <div v-if="!loading && !error" class="films-grid">
+    <div v-for="film in films" :key="film.id" class="film-card">
+      
+      <div class="poster-container">
+        <img 
+          :src="film.Categorie" 
+          alt="Affiche" 
+          class="movie-poster"
+          @error="(e) => e.target.src = 'https://via.placeholder.com/500x750?text=No+Image'"
+        />
       </div>
 
-      <!-- États de chargement -->
-      <div v-if="loading" class="loading-state">
-        <div class="spinner"></div>
-        <p>Chargement des films...</p>
-      </div>
-
-      <div v-else-if="error" class="error-state">
-        <div class="error-icon">⚠️</div>
-        <h3>Oups ! Une erreur est survenue</h3>
-        <p>{{ error }}</p>
-        <button @click="loadFilms" class="btn-retry">
-          Réessayer
-        </button>
-      </div>
-
-      <div v-else-if="films.length === 0" class="empty-state">
-        <div class="empty-icon">🎭</div>
-        <h3>Aucun film trouvé</h3>
-        <p>La liste des films est vide pour le moment.</p>
-      </div>
-
-      <!-- Grille des films -->
-      <div v-else class="films-grid">
-        <div v-for="film in films" :key="film.id" class="film-card">
-          <div class="film-badge">{{ film.Categorie }}</div>
-          <div class="film-content">
-            <h3 class="film-title">{{ film.Titre }}</h3>
-            <div class="film-info">
-              <p><strong>Réalisateur:</strong> {{ film.Realisateur }}</p>
-              <p><strong>Acteurs:</strong> {{ film.Acteur }}</p>
-              <div class="film-rating">
-                <span class="rating-stars">
-                  {{ '★'.repeat(Math.floor(film.Note)) }}{{ '☆'.repeat(5 - Math.floor(film.Note)) }}
-                </span>
-                <span class="rating-text">{{ film.Note }}/10</span>
-              </div>
-              <p class="rating-count">{{ film.Nombre_note }} votes</p>
-            </div>
+      <div class="film-content">
+        <h3 class="film-title">{{ film.Titre }}</h3>
+        <div class="film-info">
+          <p><strong>Réalisateur:</strong> {{ film.Realisateur }}</p>
+          <p><strong>Acteurs:</strong> {{ film.Acteur }}</p>
+          <div class="film-rating">
+            <span class="stars">
+              {{ '★'.repeat(Math.floor(film.Note / 2)) }}{{ '☆'.repeat(Math.max(0, 5 - Math.floor(film.Note / 2))) }}
+            </span>
+            <span class="rating-text">{{ film.Note }}/10</span>
           </div>
+          <p class="rating-count">{{ film.Nombre_note }} votes</p>
         </div>
       </div>
-    </main>
+    </div>
+  </div>
+</main>
   </div>
 </template>
 
@@ -86,6 +71,8 @@ const loadFilms = async () => {
   error.value = ''
   
   try {
+    await fetch('http://localhost:3000/api/import-auto')
+
     const data = await getFilms()
     films.value = data
   } catch (err: any) {
@@ -358,5 +345,41 @@ onMounted(() => {
   .film-card {
     padding: 20px;
   }
+}
+.films-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 30px;
+}
+
+.film-card {
+  background: white;
+  border-radius: 15px;
+  overflow: hidden; /* Important pour que l'image ne dépasse pas des bords arrondis */
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  transition: transform 0.3s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.poster-container {
+  width: 100%;
+  height: 400px; /* Hauteur fixe pour les affiches */
+  background: #222;
+}
+
+.movie-poster {
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* L'image remplit le cadre sans être déformée */
+}
+
+.film-content {
+  padding: 20px;
+}
+
+.stars {
+  color: #ffc107;
+  font-size: 1.2rem;
 }
 </style>

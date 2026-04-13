@@ -10,7 +10,7 @@
         <div class="form-group">
           <label for="username">Nom d'utilisateur</label>
           <input
-            id="username"
+            id="pseudo"
             v-model="form.username"
             type="text"
             required
@@ -123,7 +123,7 @@ const handleRegister = async () => {
 
   try {
     const response = await register({
-      username: form.value.username,
+      pseudo: form.value.username,
       email: form.value.email,
       password: form.value.password
     })

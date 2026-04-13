@@ -1,7 +1,6 @@
 const express = require('express');
 const db = require('./db');
 const cors = require('cors');
-const { router: authRouter } = require('./routes/auth');
 
 const app = express();
 const PORT = 3000;
@@ -9,16 +8,15 @@ const PORT = 3000;
 app.use(express.json());
 app.use(cors());
 
-// Routes d'authentification
-app.use('/api/auth', authRouter);
+const TMDB_TOKEN = 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI5MWU1ZTA0ZWJlY2RmM2EyNWViNjBiNzM3MDkyOTNmNyIsIm5iZiI6MTc3NjA2NDY2My44OTUsInN1YiI6IjY5ZGM5ODk3NDc1YTUyNTkwZmQ5MzU3ZSIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.n3ZD2LAPhald_Cb5jwQHJkIF5f7DWhWYlqnKtKWavls';
 
 /**
- * ROUTE 1 : Récupérer les films pour le Front-end
- */
+ * ROUTE 1 
+*/
 app.get('/api/films', async (req, res) => {
     try {
         const [rows] = await db.query('SELECT * FROM films ORDER BY Note DESC');
-        res.json(rows); 
+        res.json(rows);
     } catch (error) {
         console.error("Erreur SQL :", error);
         res.status(500).json({ error: "Impossible de récupérer les films" });
@@ -26,88 +24,92 @@ app.get('/api/films', async (req, res) => {
 });
 
 /**
- * ROUTE 2 : Importation Action (Filtre films sortis uniquement)
+ * ROUTE 2 : Importation TMDB
  */
-app.get('/api/remplir-action', async (req, res) => {
+app.get('/api/import-auto', async (req, res) => {
     try {
-        console.log("🧹 Nettoyage de la base...");
-        await db.execute('SET FOREIGN_KEY_CHECKS = 0');
-        await db.execute('TRUNCATE TABLE films');
-        await db.execute('SET FOREIGN_KEY_CHECKS = 1');
-
-        console.log("⏳ Récupération de la liste initiale...");
-        const listResp = await fetch('https://imdb236.p.rapidapi.com/api/imdb/cast/nm0000129/titles', {
-            headers: {
-                'x-rapidapi-key': '5cf9d8e0bemsh3004889fd362426p154b66jsnaa2a23cb51d4',
-                'x-rapidapi-host': 'imdb236.p.rapidapi.com'
-            }
-        });
-        
-        const data = await listResp.json();
-        if (!Array.isArray(data)) return res.status(400).json({ erreur: "Erreur API" });
-
-        let filmsAjoutes = 0;
-
-        // On parcourt la liste jusqu'à avoir 10 films avec des notes
-        for (const f of data) {
-            if (filmsAjoutes >= 10) break;
-
-            console.log(`🎬 Analyse de : ${f.originalTitle}`);
-
-            const detailResp = await fetch(`https://imdb236.p.rapidapi.com/api/imdb/title/${f.id}`, {
-                headers: {
-                    'x-rapidapi-key': '5cf9d8e0bemsh3004889fd362426p154b66jsnaa2a23cb51d4',
-                    'x-rapidapi-host': 'imdb236.p.rapidapi.com'
-                }
-            });
-            const d = await detailResp.json();
-
-            // LE FILTRE : On ne prend que les films qui ont une note (donc déjà sortis)
-            if (d.averageRating && d.averageRating > 0) {
-                const realisateur = d.directors?.[0]?.name || "Inconnu";
-                const casting = d.cast?.slice(0, 3).map(c => c.name).join(', ') || "Tom Cruise";
-
+        const [count] = await db.query('SELECT COUNT(*) as total FROM films');
+        if (count[0].total > 0) return res.json({ message: "Base déjà pleine" });
+        const API_KEY = '91e5e04ebecdf3a25eb60b73709293f7'; 
+        console.log("🚀 Appel à TMDB...");
+        const url = `https://api.themoviedb.org/3/movie/popular?api_key=${API_KEY}&language=fr-FR&page=1`;
+        const resp = await fetch(url);
+        if (!resp.ok) {
+            const errorText = await resp.text();
+            console.error("❌ Erreur TMDB :", errorText);
+            return res.status(resp.status).json({ error: "Problème avec la clé API" });
+        }
+        const data = await resp.json();
+        if (data.results && data.results.length > 0) {
+            console.log(`🎬 ${data.results.length} films trouvés. Insertion...`);
+            for (const f of data.results) {
+                const img = f.poster_path ? `https://image.tmdb.org/t/p/w500${f.poster_path}` : '';
+                await db.execute(sql, [f.id.toString(), f.title, "TMDB", "Casting", f.vote_average, f.vote_count, img]);
                 const sql = `INSERT INTO films (id_api, Titre, Realisateur, Acteur, Note, Nombre_note, Categorie) VALUES (?, ?, ?, ?, ?, ?, ?)`;
                 await db.execute(sql, [
-                    f.id,
-                    d.originalTitle || f.originalTitle,
-                    realisateur,
-                    casting,
-                    d.averageRating,
-                    d.numVotes || 0,
-                    d.genres?.join(', ') || "Action"
+                    f.id.toString(),
+                    f.title,
+                    "TMDB Studios",
+                    "Casting TMDB",
+                    f.vote_average,
+                    f.vote_count,
+                    img 
                 ]);
-
-                filmsAjoutes++;
-                console.log(`✅ Ajouté : ${d.originalTitle} (${d.averageRating}/10)`);
-            } else {
-                console.log(`⏭️ Ignoré (Pas de note)`);
             }
+            res.json({ message: "Importation TMDB réussie !" });
+        } else {
+            res.json({ message: "Aucun film trouvé." });
         }
 
-        // ON ENVOIE LA RÉPONSE ICI (Après la boucle !)
-        res.json({ message: `Succès ! ${filmsAjoutes} vrais films ont été importés.` });
-
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: "Erreur lors du remplissage" });
+        console.error("Crash serveur :", error.message);
+        res.status(500).json({ error: "Erreur lors de l'import" });
     }
 });
-
 /**
- * ROUTE 3 : Inscription utilisateur
+ * ROUTE 3 : Connexion 
  */
-app.post('/api/utilisateurs', async (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
     try {
-        const { pseudo, email } = req.body;
-        if (!pseudo || !email) return res.status(400).json({ error: "Champs manquants" });
-        const [resultat] = await db.execute('INSERT INTO utilisateurs (Pseudo, Email) VALUES (?, ?)', [pseudo, email]);
-        res.status(201).json({ message: "Utilisateur créé !", id: resultat.insertId });
+        const { email, password } = req.body;
+        const [users] = await db.query('SELECT * FROM utilisateurs WHERE Email = ?', [email]);
+        if (users.length === 0) {
+            return res.status(401).json({ error: "Utilisateur non trouvé" });
+        }
+        const user = users[0];
+        if (password !== user.password_hash) {
+            return res.status(401).json({ error: "Mot de passe incorrect" });
+        }
+        res.json({
+            id: user.id,
+            pseudo: user.Pseudo,
+            email: user.Email,
+            message: "Connexion réussie !"
+        });
     } catch (error) {
-        res.status(500).json({ error: "Erreur création utilisateur" });
+        res.status(500).json({ error: "Erreur serveur login" });
     }
 });
-
+/**
+ * ROUTE 4 : Inscription (
+ */
+app.post('/api/auth/register', async (req, res) => {
+    try {
+        const { pseudo, email, password } = req.body;
+        if (!pseudo || !email || !password) {
+            return res.status(400).json({ error: "Tous les champs sont obligatoires" });
+        }
+        const sql = `INSERT INTO utilisateurs (Pseudo, Email, password_hash) VALUES (?, ?, ?)`;
+        await db.execute(sql, [pseudo, email, password]);
+        res.status(201).json({ message: "Utilisateur créé !" });
+    } catch (error) {
+        console.error("ERREUR SQL :", error.message);
+        if (error.code === 'ER_DUP_ENTRY') {
+            return res.status(400).json({ error: "Cet email est déjà utilisé." });
+        }
+        res.status(500).json({ error: "Erreur serveur register" });
+    }
+});
 app.listen(PORT, () => {
     console.log(`🚀 Serveur prêt sur http://localhost:${PORT}`);
 });
